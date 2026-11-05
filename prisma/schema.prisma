@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plano {
+  BASICO
+  PREMIUM
+}
+
+enum Role {
+  DONO
+  GERENTE
+  ATENDENTE
+  MECANICO
+}
+
+model Tenant {
+  id               String   @id @default(uuid())
+  nome             String
+  plano            Plano    @default(BASICO)
+  modulosLiberados String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  usuarios         Usuario[]
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  email     String
+  senhaHash String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
