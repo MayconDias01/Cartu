@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
 enum Plano {
   BASICO
   PREMIUM
@@ -18,6 +22,59 @@ enum Role {
   ATENDENTE
   MECANICO
 }
+
+enum StatusOrdemServico {
+  ABERTA
+  EM_ANDAMENTO
+  AGUARDANDO_PECA
+  CONCLUIDA
+  CANCELADA
+}
+
+enum TipoChecklist {
+  ENTRADA
+  DIAGNOSTICO
+  SAIDA
+}
+
+enum TipoMovimentacaoEstoque {
+  ENTRADA
+  SAIDA
+}
+
+enum StatusCompra {
+  PENDENTE
+  RECEBIDA
+  CANCELADA
+}
+
+enum StatusOrcamento {
+  ABERTO
+  APROVADO
+  RECUSADO
+  CONVERTIDO
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  CARTAO
+  PIX
+}
+
+enum TipoLancamentoFinanceiro {
+  PAGAR
+  RECEBER
+}
+
+enum StatusDocumentoFiscal {
+  PENDENTE
+  EMITIDA
+  CANCELADA
+}
+
+// ---------------------------------------------------------------------------
+// Tenant / Usuario
+// ---------------------------------------------------------------------------
 
 model Tenant {
   id               String   @id @default(uuid())
@@ -43,5 +100,263 @@ model Usuario {
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Clientes e veículos
+// ---------------------------------------------------------------------------
+
+model Cliente {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  telefone  String?
+  email     String?
+  cpfCnpj   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  veiculos  Veiculo[]
+  ordens    OrdemServico[]
+  orcamentos Orcamento[]
+  vendas    Venda[]
+
+  @@index([tenantId])
+}
+
+model Veiculo {
+  id        String   @id @default(uuid())
+  tenantId  String
+  clienteId String
+  placa     String
+  modelo    String
+  marca     String?
+  ano       Int?
+  createdAt DateTime @default(now())
+
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  ordens    OrdemServico[]
+
+  @@index([tenantId])
+  @@index([clienteId])
+}
+
+// ---------------------------------------------------------------------------
+// Ordens de serviço, checklist e garantia
+// ---------------------------------------------------------------------------
+
+model OrdemServico {
+  id                String             @id @default(uuid())
+  tenantId          String
+  clienteId         String
+  veiculoId         String
+  mecanicoId        String?
+  status            StatusOrdemServico @default(ABERTA)
+  descricaoProblema String
+  valorTotal        Decimal            @default(0) @db.Decimal(10, 2)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  cliente           Cliente            @relation(fields: [clienteId], references: [id])
+  veiculo           Veiculo            @relation(fields: [veiculoId], references: [id])
+  checklists        Checklist[]
+  garantia          Garantia?
+  arquivos          Arquivo[]
+  lancamentos       Financeiro[]
+  dadosFiscais      DadosFiscais[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, mecanicoId])
+}
+
+model Checklist {
+  id             String        @id @default(uuid())
+  tenantId       String
+  ordemServicoId String
+  tipo           TipoChecklist
+  observacoes    String?
+  fotos          String[]
+  autorId        String
+  createdAt      DateTime      @default(now())
+
+  ordemServico   OrdemServico  @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([tenantId, ordemServicoId])
+}
+
+model Garantia {
+  id             String       @id @default(uuid())
+  tenantId       String
+  ordemServicoId String       @unique
+  prazoDias      Int
+  termos         String
+  createdAt      DateTime     @default(now())
+
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo e estoque
+// ---------------------------------------------------------------------------
+
+model Produto {
+  id          String   @id @default(uuid())
+  tenantId    String
+  nome        String
+  descricao   String?
+  precoVenda  Decimal  @db.Decimal(10, 2)
+  unidade     String   @default("UN")
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  movimentacoes EstoqueMovimentacao[]
+
+  @@index([tenantId])
+}
+
+model Servico {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  descricao String?
+  preco     Decimal  @db.Decimal(10, 2)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model EstoqueMovimentacao {
+  id        String                  @id @default(uuid())
+  tenantId  String
+  produtoId String
+  tipo      TipoMovimentacaoEstoque
+  quantidade Int
+  motivo    String?
+  createdAt DateTime                @default(now())
+
+  produto   Produto                 @relation(fields: [produtoId], references: [id])
+
+  @@index([tenantId, produtoId])
+}
+
+// ---------------------------------------------------------------------------
+// Fornecedores e compras (Premium)
+// ---------------------------------------------------------------------------
+
+model Fornecedor {
+  id        String   @id @default(uuid())
+  tenantId  String
+  nome      String
+  cnpj      String?
+  telefone  String?
+  email     String?
+  createdAt DateTime @default(now())
+
+  compras   Compra[]
+
+  @@index([tenantId])
+}
+
+model Compra {
+  id           String       @id @default(uuid())
+  tenantId     String
+  fornecedorId String
+  valorTotal   Decimal      @db.Decimal(10, 2)
+  status       StatusCompra @default(PENDENTE)
+  createdAt    DateTime     @default(now())
+
+  fornecedor   Fornecedor   @relation(fields: [fornecedorId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Orçamentos e vendas / PDV (Premium)
+// ---------------------------------------------------------------------------
+
+model Orcamento {
+  id         String          @id @default(uuid())
+  tenantId   String
+  clienteId  String
+  valorTotal Decimal         @db.Decimal(10, 2)
+  status     StatusOrcamento @default(ABERTO)
+  createdAt  DateTime        @default(now())
+
+  cliente    Cliente         @relation(fields: [clienteId], references: [id])
+
+  @@index([tenantId])
+}
+
+model Venda {
+  id             String         @id @default(uuid())
+  tenantId       String
+  clienteId      String?
+  valorTotal     Decimal        @db.Decimal(10, 2)
+  formaPagamento FormaPagamento
+  createdAt      DateTime       @default(now())
+
+  cliente        Cliente?       @relation(fields: [clienteId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Financeiro
+// ---------------------------------------------------------------------------
+
+model Financeiro {
+  id             String                   @id @default(uuid())
+  tenantId       String
+  tipo           TipoLancamentoFinanceiro
+  descricao      String
+  valor          Decimal                  @db.Decimal(10, 2)
+  vencimento     DateTime
+  pago           Boolean                  @default(false)
+  ordemServicoId String?
+  createdAt      DateTime                 @default(now())
+
+  ordemServico   OrdemServico?            @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([tenantId, tipo, pago])
+}
+
+// ---------------------------------------------------------------------------
+// Dados fiscais (Premium, preparação para NF-e/NFS-e na fase 2)
+// ---------------------------------------------------------------------------
+
+model DadosFiscais {
+  id             String                @id @default(uuid())
+  tenantId       String
+  ordemServicoId String?
+  numeroNota     String?
+  status         StatusDocumentoFiscal @default(PENDENTE)
+  createdAt      DateTime              @default(now())
+
+  ordemServico   OrdemServico?         @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Central de arquivos — referência a S3, nunca o binário no banco
+// ---------------------------------------------------------------------------
+
+model Arquivo {
+  id             String        @id @default(uuid())
+  tenantId       String
+  nome           String
+  url            String
+  tipo           String
+  ordemServicoId String?
+  createdAt      DateTime      @default(now())
+
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id])
+
   @@index([tenantId])
 }

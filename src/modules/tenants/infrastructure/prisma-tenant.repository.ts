@@ -18,4 +18,9 @@ export class PrismaTenantRepository implements TenantRepository {
     const row = await this.prisma.tenant.create({ data: dados });
     return new Tenant(row.id, row.nome, row.plano as Plano, row.modulosLiberados);
   }
+
+  async updatePlano(id: string, plano: Plano, modulosLiberados: string[]): Promise<Tenant> {
+    const row = await this.prisma.tenant.update({ where: { id }, data: { plano, modulosLiberados } });
+    return new Tenant(row.id, row.nome, row.plano as Plano, row.modulosLiberados);
+  }
 }

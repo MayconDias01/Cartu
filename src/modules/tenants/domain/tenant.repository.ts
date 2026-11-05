@@ -10,6 +10,7 @@ export interface NovoTenant {
 export interface TenantRepository {
   findById(id: string): Promise<Tenant | null>;
   create(dados: NovoTenant): Promise<Tenant>;
+  updatePlano(id: string, plano: Plano, modulosLiberados: string[]): Promise<Tenant>;
 }
 
 export const TENANT_REPOSITORY = Symbol('TENANT_REPOSITORY');

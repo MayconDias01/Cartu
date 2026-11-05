@@ -1,4 +1,4 @@
-import { tenantStorage } from '../src/common/middleware/tenant-context.middleware';
+import { tenantStorage } from '../src/common/context/tenant-context.store';
 
 describe('isolamento de tenant (AsyncLocalStorage)', () => {
   it('não vaza tenantId entre execuções concorrentes', async () => {

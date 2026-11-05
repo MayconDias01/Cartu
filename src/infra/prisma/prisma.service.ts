@@ -1,6 +1,18 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { tenantStorage } from '../../common/middleware/tenant-context.middleware';
+import { tenantStorage } from '../../common/context/tenant-context.store';
+
+const ACOES_FILTRAVEIS_POR_WHERE = [
+  'findMany',
+  'findFirst',
+  'update',
+  'updateMany',
+  'delete',
+  'deleteMany',
+  'count',
+  'aggregate',
+  'groupBy',
+];
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -14,11 +26,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           if (!context?.tenantId) {
             throw new Error('tenant_id não definido no contexto');
           }
-          if (params.action === 'findMany' || params.action === 'findFirst') {
+          if (ACOES_FILTRAVEIS_POR_WHERE.includes(params.action)) {
             params.args.where = { ...params.args.where, tenantId: context.tenantId };
           }
           if (params.action === 'create') {
             params.args.data = { ...params.args.data, tenantId: context.tenantId };
+          }
+          if (params.action === 'upsert') {
+            params.args.where = { ...params.args.where, tenantId: context.tenantId };
+            params.args.create = { ...params.args.create, tenantId: context.tenantId };
           }
         }
       }
